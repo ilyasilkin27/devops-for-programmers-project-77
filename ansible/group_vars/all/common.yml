@@ -1,0 +1,7 @@
+datadog_domain: datadoghq.eu
+app_domain: kypc1.ru
+ansible_user: root
+ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+ssh_public_key: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxMD1sG/nNryzYB4/6t2o0TaGz58oSvr2Uggtvs8wPx ilyasilkin27@gmail.com
+destination_path: /root/app
+env_file_path: "{{ destination_path }}/.env"

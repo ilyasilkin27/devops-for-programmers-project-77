@@ -1,0 +1,76 @@
+- hosts: all
+
+  vars:
+    pip_install_packages:
+      - name: docker
+
+  pre_tasks:
+    - name: Run apt-get update as a separate step
+      ansible.builtin.apt:
+        update_cache: yes
+      tags: prepare
+
+  roles:
+    - geerlingguy.pip
+
+  tasks:
+    - name: Set sql_require_primary_key variable to 0 persistently
+      ansible.builtin.uri:
+        url: "https://api.digitalocean.com/v2/databases/{{ db_cluster_id }}/config"
+        method: PATCH
+        body_format: json
+        status_code: [ 200, 202 ]
+        return_content: true
+        headers:
+          Authorization: "Bearer {{ do_api_token }}"
+        body:
+          config:
+            sql_require_primary_key: false
+      tags: prepare
+
+    - name: Make sure destination dir exists
+      file:
+        path: "{{ destination_path }}"
+        state: directory
+      tags: deploy
+
+    - name: Copy env file
+      ansible.builtin.template:
+        src: .env.j2
+        dest: "{{ env_file_path }}"
+      tags: deploy
+
+    - name: Start a container
+      community.docker.docker_container:
+        name: app
+        image: redmine
+        state: started
+        restart: true
+        restart_policy: "always"
+        env_file: "{{ env_file_path }}"
+        ports:
+          - "80:3000"
+      register: output
+      tags: deploy
+
+    - name: Verify that service is running
+      ansible.builtin.assert:
+        that:
+          - "output.container.State.Running"
+      tags: deploy
+
+    - name: Datadog Agent installation
+      import_role:
+        name: datadog.dd.agent
+      tags: datadog
+      vars:
+        datadog_site: "{{ datadog_domain }}"
+        datadog_checks:
+          http_check:
+            init_config:
+            instances:
+              - name: Redmine
+                url: http://localhost
+                method: GET
+                timeout: 10
+                http_response_status_code: 200
